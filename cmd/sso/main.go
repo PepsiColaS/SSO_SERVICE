@@ -12,11 +12,11 @@ import (
 
 func main() {
 	cfg := config.MustLoad()
+
 	log := setupLogger()
-	storage, err := postgres.ConnectToDataBase(cfg, log)
-	if err != nil {
-		panic(err)
-	}
+
+	storage := postgres.ConnectToDataBase(cfg)
+	storage.CreateDataBase()
 
 	application := app.New(log, cfg.GRPC.ApiPort, storage)
 	go application.GRPCSrv.Run()
@@ -25,6 +25,7 @@ func main() {
 	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
 
 	<-stop
+
 	storage.Close()
 	log.Info("storage stopped")
 	application.GRPCSrv.Stop()

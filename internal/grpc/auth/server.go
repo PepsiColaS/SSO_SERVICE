@@ -6,6 +6,7 @@ import (
 	"sso/internal/database/postgres"
 
 	ssov1 "github.com/PepsiColaS/SSO_PROTO/gen/go/sso"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -43,6 +44,12 @@ func (s *serverAPI) Login(ctx context.Context, req *ssov1.LoginRequest) (*ssov1.
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 
+	// compare hash pass
+	if err := bcrypt.CompareHashAndPassword(, []byte(password)); err != nil {
+		a.log.Info("invalid credentials")
+		return "", fmt.Errorf("%s", "%w", op, ErrInvalidCredentials)
+	}
+
 	return &ssov1.LoginResponce{
 		Token: token,
 	}, nil
@@ -56,7 +63,13 @@ func (s *serverAPI) Register(ctx context.Context, req *ssov1.RegisterRequest) (*
 		return nil, status.Error(codes.InvalidArgument, "password is required")
 	}
 
-	userID, err := s.storage.RegisterNewUser(req.GetLogin(), req.GetPassword())
+	//gen hash pass
+	passHash, err := bcrypt.GenerateFromPassword([]byte(req.GetPassword()), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	userID, err := s.storage.RegisterNewUser(req.GetLogin(), string(passHash))
 	if err != nil {
 		return nil, status.Error(codes.Internal, "internal error")
 	}

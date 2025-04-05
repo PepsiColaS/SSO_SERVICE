@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sso/internal/config"
 
 	"github.com/jackc/pgx/v4"
@@ -13,16 +12,13 @@ type PostgresClient struct {
 	conn *pgx.Conn
 }
 
-func ConnectToDataBase(cfg *config.Config, log *slog.Logger) (*PostgresClient, error) {
+func ConnectToDataBase(cfg *config.Config) *PostgresClient {
 	dataBaseURL := fmt.Sprintf("postgres://%s:%s@%s/%s", cfg.GRPC.User, cfg.GRPC.Password, cfg.GRPC.Host, cfg.GRPC.Db)
-	// urlExample := "postgres://username:password@localhost:5432/database_name"
 	conn, err := pgx.Connect(context.Background(), dataBaseURL)
 	if err != nil {
-		log.Error("Failed connet to database")
-		return nil, err
+		panic(err)
 	}
-	log.Info("Successful connect with DB")
-	return &PostgresClient{conn}, nil
+	return &PostgresClient{conn}
 }
 
 func (pc *PostgresClient) Close() error {
@@ -39,4 +35,25 @@ func (pc *PostgresClient) RegisterNewUser(login string, password string) (userID
 
 func (pc *PostgresClient) IsAdmin(uID int64) (isAdmin bool, err error) {
 	return false, err
+}
+
+func (pc *PostgresClient) CreateDataBase() {
+	query := `
+			CREATE TABLE IF NOT EXISTS users (
+			id INTEGER PRIMARY KEY,
+			login TEXT NOT NULL UNIQUE,
+			pass_hash TEXT  NOT NULL
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_login ON users (login);
+
+		CREATE TABLE IF NOT EXISTS apps (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL UNIQUE,
+			secret TEXT NOT NULL UNIQUE
+		); `
+	_, err := pc.conn.Exec(context.Background(), query)
+	if err != nil {
+		panic(err)
+	}
 }
