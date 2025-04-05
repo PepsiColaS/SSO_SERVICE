@@ -3,10 +3,10 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"sso/internal/database/postgres"
 
 	ssov1 "github.com/PepsiColaS/SSO_PROTO/gen/go/sso"
-	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -35,23 +35,14 @@ func (s *serverAPI) Login(ctx context.Context, req *ssov1.LoginRequest) (*ssov1.
 	if req.GetPassword() == "" {
 		return nil, status.Error(codes.InvalidArgument, "password is required")
 	}
-	if req.GetAppId() == 0 {
-		return nil, status.Error(codes.InvalidArgument, "appID is required")
-	}
-
-	token, err := s.storage.Login(req.GetLogin(), req.GetPassword(), int(req.GetAppId()))
+	uID, err := s.storage.Login(req.GetLogin(), req.GetPassword())
 	if err != nil {
 		return nil, status.Error(codes.Internal, "internal error")
 	}
-
-	// compare hash pass
-	if err := bcrypt.CompareHashAndPassword(, []byte(password)); err != nil {
-		a.log.Info("invalid credentials")
-		return "", fmt.Errorf("%s", "%w", op, ErrInvalidCredentials)
-	}
+	fmt.Println(err)
 
 	return &ssov1.LoginResponce{
-		Token: token,
+		UserId: uID,
 	}, nil
 }
 
@@ -62,18 +53,10 @@ func (s *serverAPI) Register(ctx context.Context, req *ssov1.RegisterRequest) (*
 	if req.GetPassword() == "" {
 		return nil, status.Error(codes.InvalidArgument, "password is required")
 	}
-
-	//gen hash pass
-	passHash, err := bcrypt.GenerateFromPassword([]byte(req.GetPassword()), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, err
-	}
-
-	userID, err := s.storage.RegisterNewUser(req.GetLogin(), string(passHash))
+	userID, err := s.storage.RegisterNewUser(req.GetLogin(), req.GetLogin())
 	if err != nil {
 		return nil, status.Error(codes.Internal, "internal error")
 	}
-
 	return &ssov1.RegisterResponce{
 		UserId: userID,
 	}, nil
@@ -89,5 +72,18 @@ func (s *serverAPI) isAdmin(ctx context.Context, req *ssov1.IsAdminRequest) (*ss
 	}
 	return &ssov1.IsAdminResponce{
 		IsAdmin: isAdmin,
+	}, nil
+}
+
+func (s *serverAPI) isLibrarian(ctx context.Context, req *ssov1.IsLibrarianRequest) (*ssov1.IsLibrarianResponce, error) {
+	if req.GetUserId() == 0 {
+		return nil, status.Error(codes.InvalidArgument, "userID is required")
+	}
+	isLibrarian, err := s.storage.IsLibrarian(req.GetUserId())
+	if err != nil {
+		return nil, status.Error(codes.Internal, "internal error")
+	}
+	return &ssov1.IsLibrarianResponce{
+		IsLibrarian: isLibrarian,
 	}, nil
 }
